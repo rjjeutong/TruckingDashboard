@@ -248,7 +248,20 @@ server <- function(input, output, session) {
              `Prof/Loss` = round(Revenues - `All Expenses`,2)) %>%
        select(!!!syms(input$groupby), Revenues, `All Expenses`,`Prof/Loss`,
               `Driver Pay`, Fuel, Tolls, `Truck Note`, Insurance,
-              Expenses, Distance, `Fuel Quantity`, `Miles/Gal`)
+              Expenses, Distance, `Fuel Quantity`, `Miles/Gal`) %>% 
+      group_by(!!!syms(input$groupby)) %>% 
+      summarise(Revenues = sum(Revenues, na.rm = T),
+                `All Expenses` = sum(`All Expenses`, na.rm = T),
+                `Prof/Loss` = sum(`Prof/Loss`, na.rm = T),
+                `Driver Pay` = sum(`Driver Pay`, na.rm = T),
+                Fuel = sum(Fuel, na.rm = T),
+                Tolls = sum(Tolls, na.rm = T),
+                `Truck Note` = sum(`Truck Note`, na.rm = T),
+                Insurance = sum(Insurance, na.rm = T),
+                Expenses = sum(Expenses, na.rm = T),
+                Distance = sum(Distance, na.rm = T),
+                `Fuel Quantity` = sum(`Fuel Quantity`, na.rm = T),
+                `Miles/Gal` = sum(`Miles/Gal`, na.rm = T))
   })
   
   # output$calendar <- DT::renderDataTable(
@@ -352,7 +365,7 @@ server <- function(input, output, session) {
       fill = F
     )
   )
-  
+  ############ output aggregate data table ########
   output$calendar <- DT::renderDataTable(
     all_dat() %>%
       select(!!!syms(input$groupby), Revenues, `All Expenses`, `Prof/Loss`, Fuel,
@@ -364,8 +377,8 @@ server <- function(input, output, session) {
     RateCon %>%
       select(toDate, toLocation, driver=`Driver Name`, total) %>%
       left_join(address_n_codes, by=c('toLocation'='address')) %>%
-      filter(toDate >= day1(), toDate <= day2())#,
-             #driver %in% input$drvr)
+      filter(toDate >= day1(), toDate <= day2(),
+             driver %in% input$drvr)
   })
   
   
