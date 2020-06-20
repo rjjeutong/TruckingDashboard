@@ -354,25 +354,26 @@ server <- function(input, output, session) {
   )
   
   output$calendar <- DT::renderDataTable(
-    all_dat() %>% 
+    all_dat() %>%
       select(!!!syms(input$groupby), Revenues, `All Expenses`, `Prof/Loss`, Fuel,
-             `Driver Pay`, `Miles/Gal`) %>% 
+             `Driver Pay`, `Miles/Gal`) %>%
       datatable()
   )
   ############## map data and renderleaflet ##################
   mdata <- reactive({
     RateCon %>%
-      select(toDate, toLocation, driver=`Driver Name`, total) %>% 
+      select(toDate, toLocation, driver=`Driver Name`, total) %>%
       left_join(address_n_codes, by=c('toLocation'='address')) %>%
-      filter(toDate >= day1(), toDate <= day2(),
-             driver %in% input$drvr)
+      filter(toDate >= day1(), toDate <= day2())#,
+             #driver %in% input$drvr)
   })
+  
   
   output$mymap <- renderLeaflet(
     leaflet::leaflet(data = mdata()) %>%
       addProviderTiles(providers$OpenStreetMap.Mapnik) %>% 
       setView(lng = -88.833530, lat = 36.843707, zoom = 5) %>% 
-      addMarkers(lng = ~lon, lat = ~lat,
+      addMarkers(map = ., lng = ~lon, lat = ~lat,
                  clusterOptions = markerClusterOptions())
   )
   ############################################################
