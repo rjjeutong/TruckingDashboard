@@ -36,7 +36,7 @@ sidebar <- dashboardSidebar(
     
     dateRangeInput(inputId = 'datein', 
                    label = h4('Date Range'), 
-                   start = '2020-01-01', end = Sys.Date()),
+                   start = Sys.Date()-60, end = Sys.Date()),
     checkboxGroupInput(inputId = 'groupby',
                        label = h4('Summarize By'),
                        choices = groubyid, selected = groubyid),
@@ -137,7 +137,7 @@ server <- function(input, output, session) {
       mutate(week = lubridate::week(date),
              month = month(date, label = T),
              year = year(date)) %>% 
-      group_by(!!!syms(input$groupby), driver) %>% 
+      group_by(!!!syms(input$groupby)) %>% 
       summarise(`Driver Pay` = sum(pay, na.rm = T)) %>% 
       right_join(cal())
   })
@@ -221,7 +221,11 @@ server <- function(input, output, session) {
   #find unique drivers to fill the driver selection box
   observeEvent(input$datein, {
     sel_driver <- reactive({
-      drv() %>%
+      driver %>%
+        filter(date >= day1(), date <= day2()) %>%
+        mutate(week = lubridate::week(date),
+               month = month(date, label = T),
+               year = year(date)) %>%
         filter(!is.na(driver)) %>%
         select(driver) %>%
         pull %>% unique()
@@ -248,20 +252,7 @@ server <- function(input, output, session) {
              `Prof/Loss` = round(Revenues - `All Expenses`,2)) %>%
        select(!!!syms(input$groupby), Revenues, `All Expenses`,`Prof/Loss`,
               `Driver Pay`, Fuel, Tolls, `Truck Note`, Insurance,
-              Expenses, Distance, `Fuel Quantity`, `Miles/Gal`) %>% 
-      group_by(!!!syms(input$groupby)) %>% 
-      summarise(Revenues = sum(Revenues, na.rm = T),
-                `All Expenses` = sum(`All Expenses`, na.rm = T),
-                `Prof/Loss` = sum(`Prof/Loss`, na.rm = T),
-                `Driver Pay` = sum(`Driver Pay`, na.rm = T),
-                Fuel = sum(Fuel, na.rm = T),
-                Tolls = sum(Tolls, na.rm = T),
-                `Truck Note` = sum(`Truck Note`, na.rm = T),
-                Insurance = sum(Insurance, na.rm = T),
-                Expenses = sum(Expenses, na.rm = T),
-                Distance = sum(Distance, na.rm = T),
-                `Fuel Quantity` = sum(`Fuel Quantity`, na.rm = T),
-                `Miles/Gal` = sum(`Miles/Gal`, na.rm = T))
+              Expenses, Distance, `Fuel Quantity`, `Miles/Gal`)
   })
   
   # output$calendar <- DT::renderDataTable(
@@ -365,28 +356,29 @@ server <- function(input, output, session) {
       fill = F
     )
   )
-  ############ output aggregate data table ########
+  
   output$calendar <- DT::renderDataTable(
-    all_dat() %>%
+    all_dat() %>% 
       select(!!!syms(input$groupby), Revenues, `All Expenses`, `Prof/Loss`, Fuel,
-             `Driver Pay`, `Miles/Gal`) %>%
-      datatable()
+             `Driver Pay`, `Miles/Gal`) %>% 
+      datatable() %>% 
+      formatCurrency(columns = c("Revenues","All Expenses","Prof/Loss",
+                                 "Fuel","Driver Pay"))
   )
   ############## map data and renderleaflet ##################
   mdata <- reactive({
     RateCon %>%
-      select(toDate, toLocation, driver=`Driver Name`, total) %>%
+      select(toDate, toLocation, driver=`Driver Name`, total) %>% 
       left_join(address_n_codes, by=c('toLocation'='address')) %>%
       filter(toDate >= day1(), toDate <= day2(),
              driver %in% input$drvr)
   })
   
-  
   output$mymap <- renderLeaflet(
     leaflet::leaflet(data = mdata()) %>%
       addProviderTiles(providers$OpenStreetMap.Mapnik) %>% 
       setView(lng = -88.833530, lat = 36.843707, zoom = 5) %>% 
-      addMarkers(map = ., lng = ~lon, lat = ~lat,
+      addMarkers(lng = ~lon, lat = ~lat,
                  clusterOptions = markerClusterOptions())
   )
   ############################################################
