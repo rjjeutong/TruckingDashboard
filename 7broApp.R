@@ -8,6 +8,7 @@ library(shinydashboard)
 library(shinyalert)
 library(rlang)
 library(scales)
+library(plotly)
 
 library(leaflet)
 library(rgdal)
@@ -36,7 +37,7 @@ sidebar <- dashboardSidebar(
     
     dateRangeInput(inputId = 'datein', 
                    label = h4('Date Range'), 
-                   start = Sys.Date()-60, end = Sys.Date()),
+                   start = Sys.Date()-300, end = Sys.Date()),
     checkboxGroupInput(inputId = 'groupby',
                        label = h4('Summarize By'),
                        choices = groubyid, selected = groubyid),
@@ -61,7 +62,7 @@ body <- dashboardBody(
             fluidRow(
               box(
                 status = "primary",
-                headerPanel("Agg Data"),
+                headerPanel("Aggregate Data"),
                 br(),
                 br(),
                 solidHeader = T,
@@ -84,6 +85,38 @@ body <- dashboardBody(
             )
     ),
     tabItem(tabName = 'ifta',
+            fluidRow(
+              infoBoxOutput(outputId = "miles", width = 3),
+              infoBoxOutput("gallon", width = 3),
+              infoBoxOutput("cost", width = 3),
+              infoBoxOutput("mpg2", width = 3)
+            ),
+            br(),
+            
+            fluidRow(
+              box(
+                status = "primary",
+                headerPanel("IFTA DATA"),
+                br(),
+                br(),
+                solidHeader = T,
+                br(),
+                DT::dataTableOutput(outputId = 'iftadata'),
+                width = 4,
+                height = "600px"
+              ),
+              box(
+                status = "primary",
+                headerPanel("Fuel"),
+                br(),
+                br(),
+                solidHeader = T,
+                br(),
+                plotlyOutput(outputId = 'fuelchart'),
+                width = 8,
+                height = "600px"
+              )
+            )
             #leaflet::leafletOutput(outputId = "mymap", width = '400px')
     )
   )
@@ -109,12 +142,12 @@ server <- function(input, output, session) {
   })
   ##############################################################
   revenues <- reactive({
-    RateCon %>% 
-      filter(fromDate >= day1(), fromDate <= day2()) %>% #,
+    RateCon %>% mutate(date = toDate) %>% 
+      filter(date >= day1(), date <= day2()) %>% #,
              #`Driver Name` %in% input$drvr) %>%
-      mutate(week = lubridate::week(fromDate),
-             month = month(fromDate, label = T),
-             year = year(fromDate)) %>% 
+      mutate(week = lubridate::week(date),
+             month = month(date, label = T),
+             year = year(date)) %>% 
       group_by(!!!syms(input$groupby)) %>% 
       summarise(Revenues = sum(total, na.rm = T)) %>% 
       right_join(cal())
@@ -384,9 +417,75 @@ server <- function(input, output, session) {
   ############################################################
   
   #### IFTA Page ############
-  cnames <- c("cardNumber","date","invoiceId","unit","driver","odometer","locationName",
-              "city","state","fee","item","unitPrice","discountePrice","discount","quantity",
-              "discountAmount","discountType","amount","db","currency")
+  trips <- as_tibble(vt) %>% 
+    mutate(date = ymd(date))
+  
+  ifta_trips <- reactive({
+    trips %>% 
+      filter(date >= day1(), date <= day2()) %>% 
+      group_by(jurisdiction) %>% 
+      summarise(distance = sum(distance))
+  })
+  
+  tst <- reactive({
+    fuel %>% 
+      mutate(date = mdy(`Tran Date`)) %>% 
+      filter(Item == "ULSD",
+             date >= day1(), date <= day2()) %>% 
+      group_by(`State/ Prov`) %>% 
+      summarize(quantity = sum(Qty, na.rm = T),
+                amount = sum(Amt, na.rm = T)) %>% 
+      ungroup() %>% 
+      rename(state = `State/ Prov`)
+  })
+  
+  myIfta <- reactive({
+    ifta_trips() %>% 
+      left_join(tst(), by = c("jurisdiction" = "state")) %>% 
+      arrange(jurisdiction) %>% 
+      mutate(dol_per_gal = round(amount/quantity,2))
+  })
+  
+  output$iftadata <- renderDataTable(
+    myIfta() %>% 
+      datatable() %>% 
+      formatRound(columns = c("distance", "quantity"), digits = 0)
+  )
+  
+  ### total miles and render ###
+  totmiles <- reactive({
+    myIfta() %>%
+      summarise(distance = sum(distance, na.rm = T)) %>%
+      pull() %>% 
+      round(0)
+  })
+  output$miles <- renderInfoBox(
+    infoBox(
+      h4('Mileage'),
+      totmiles() %>% scales::comma(),
+      icon = icon('road'),
+      color = 'maroon',
+      fill = F
+    )
+  )
+  
+  ### total gallons and render ###
+  totqty <- reactive({
+    myIfta() %>%
+      summarise(quantity = sum(quantity, na.rm = T)) %>%
+      pull() %>% 
+      round(0)
+  })
+  output$gallon <- renderInfoBox(
+    infoBox(
+      h4('Gallons'),
+      totqty() %>% scales::comma(),
+      icon = icon('gas-pump'),
+      color = 'orange',
+      fill = F
+    )
+  )
+  
 }
 
 shinyApp(ui = ui, server = server)
