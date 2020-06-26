@@ -468,7 +468,6 @@ server <- function(input, output, session) {
       fill = F
     )
   )
-  
   ### total gallons and render ###
   totqty <- reactive({
     myIfta() %>%
@@ -482,6 +481,42 @@ server <- function(input, output, session) {
       totqty() %>% scales::comma(),
       icon = icon('gas-pump'),
       color = 'orange',
+      fill = F
+    )
+  )
+  ### Fuel Cost and render ###
+  totcost <- reactive({
+    myIfta() %>%
+      summarise(amount = sum(amount, na.rm = T)) %>%
+      pull() %>% 
+      round(0)
+  })
+  output$cost <- renderInfoBox(
+    infoBox(
+      h4('Total Fuel Cost'),
+      totcost() %>% scales::dollar(),
+      icon = icon('dollar'),
+      color = 'red',
+      fill = F
+    )
+  )
+  
+  ### Fuel Cost per gallon and render ###
+  dol_per_mile <- reactive({
+    myIfta() %>%
+      summarise(quantity = sum(quantity, na.rm = T),
+                amount = sum(amount, na.rm = T)) %>%
+      mutate(costmile = amount/quantity) %>% 
+      pull(costmile) %>% 
+      round(2)
+  })
+    
+  output$mpg2 <- renderInfoBox(
+    infoBox(
+      h4('Dollar per Mile'),
+      dol_per_mile(),
+      icon = icon('funnel-dollar'),
+      color = 'red',
       fill = F
     )
   )
