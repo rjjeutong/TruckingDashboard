@@ -112,7 +112,7 @@ body <- dashboardBody(
                 br(),
                 solidHeader = T,
                 br(),
-                plotlyOutput(outputId = 'fuelchart'),
+                plotOutput(outputId = 'fuelchart'),
                 width = 8,
                 height = "600px"
               )
@@ -443,7 +443,7 @@ server <- function(input, output, session) {
     ifta_trips() %>% 
       left_join(tst(), by = c("jurisdiction" = "state")) %>% 
       arrange(jurisdiction) %>% 
-      mutate(dol_per_gal = round(amount/quantity,2))
+      mutate(mpg = round(distance/quantity,2))
   })
   
   output$iftadata <- renderDataTable(
@@ -457,7 +457,7 @@ server <- function(input, output, session) {
     myIfta() %>%
       summarise(distance = sum(distance, na.rm = T)) %>%
       pull() %>% 
-      round(0)
+      round()
   })
   output$miles <- renderInfoBox(
     infoBox(
@@ -501,24 +501,39 @@ server <- function(input, output, session) {
     )
   )
   
-  ### Fuel Cost per gallon and render ###
-  dol_per_mile <- reactive({
+  ### Miles per gallon and render ###
+  mpg <- reactive({
     myIfta() %>%
-      summarise(quantity = sum(quantity, na.rm = T),
-                amount = sum(amount, na.rm = T)) %>%
-      mutate(costmile = amount/quantity) %>% 
-      pull(costmile) %>% 
+      summarise(distance = sum(distance, na.rm = T),
+                quantity = sum(quantity, na.rm = T)) %>%
+      mutate(mpg = distance/quantity) %>% 
+      pull(mpg) %>% 
       round(2)
   })
     
   output$mpg2 <- renderInfoBox(
     infoBox(
-      h4('Dollar per Mile'),
-      dol_per_mile(),
+      h4('Miles per Gallon'),
+      mpg(),
       icon = icon('funnel-dollar'),
       color = 'red',
       fill = F
     )
+  )
+  
+  output$fuelchart <- renderPlot(
+    myIfta() %>% 
+      pivot_longer(cols = distance:mpg, names_to = "stat", values_to = 'value') %>% 
+      mutate(stat = case_when(
+        stat == 'distance' ~ 'Distance (mile)',
+        stat == 'quantity' ~ 'Quantity (gal)',
+        stat == 'amount' ~ 'Fuel Value ($)',
+        TRUE ~ 'MPG (miles/gal)'
+      )) %>% 
+      ggplot(data = ., mapping = aes(x = jurisdiction, y = value, fill = stat)) +
+      geom_col(show.legend = F) +
+      facet_wrap(~stat, scales = 'free') +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 13))
   )
   
 }
