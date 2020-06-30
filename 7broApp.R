@@ -448,8 +448,10 @@ server <- function(input, output, session) {
   
   output$iftadata <- renderDataTable(
     myIfta() %>% 
+      rename(State=jurisdiction, Mileage = distance,
+             Gallon = quantity, Invoice = amount, MPG = mpg) %>% 
       datatable() %>% 
-      formatRound(columns = c("distance", "quantity"), digits = 0)
+      formatRound(columns = c("Mileage", "Gallon"), digits = 0)
   )
   
   ### total miles and render ###
